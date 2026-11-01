@@ -1,0 +1,16 @@
+{
+  "ignore": ["**/local-packages/**", "**/node_modules/**"],
+  "lsp": { "enabled": true },
+  "format": { "enabled": false },
+  "autofix": { "enabled": false },
+  "tests": { "enabled": false },
+  "actionableWarnings": { "autoFix": { "enabled": false } },
+  "startup": { "mode": "minimal", "scans": { "enabled": false } },
+  "contextInjection": { "enabled": false },
+  "opengrep": { "enabled": false },
+  "knip": { "enabled": false },
+  "jscpd": { "enabled": false },
+  "madge": { "enabled": false },
+  "gitleaks": { "enabled": false },
+  "govulncheck": { "enabled": false }
+}

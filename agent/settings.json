@@ -1,0 +1,73 @@
+{
+  "lastChangelogVersion": "1.4.0",
+  "defaultTools": [
+    "+codemode",
+    "+ls",
+    "+find",
+    "+grep"
+  ],
+  "codemode": {
+    "mode": "on"
+  },
+  "tidy": {
+    "enabled": true,
+    "groupTools": true,
+    "alwaysShowTools": [
+      "edit",
+      "write"
+    ],
+    "frameUserMessages": false,
+    "treeResults": true,
+    "treePreviewLines": 20
+  },
+  "defaultProvider": "opencode-go",
+  "defaultModel": "deepseek-v4.1-flash",
+  "powerline": {
+    "preset": "default",
+    "welcome": true,
+    "separator": "pipe",
+    "placement": "above",
+    "layout": {
+      "left": [
+        "model",
+        "thinking",
+        "path",
+        "git",
+        "queue"
+      ],
+      "right": [
+        "context_pct",
+        "cost"
+      ],
+      "secondary": [
+        "extension_statuses"
+      ]
+    },
+    "queue": {
+      "compactPromptMode": "native"
+    },
+    "autoFollowUp": false,
+    "sendDelayMs": 0
+  },
+  "workingVibe": "off",
+  "bashMode": {
+    "completions": false
+  },
+  "packages": [
+    "npm:@juicesharp/rpiv-ask-user-question@2.15.0",
+    "npm:pi-memory@0.4.2",
+    "npm:pi-web-access@0.45.0",
+    "npm:billion-context-pi@0.1.83",
+    "npm:pi-lens@4.4.5",
+    "/home/sbtzk/.pi/agent/local-packages/pi-tidy-tree",
+    "git:github.com/ycfeng/pi-progress@a5a7c212fbf753d38b5acb5479f8a11377e80624",
+    "npm:@narumitw/pi-usage",
+    "npm:pi-powerline-footer@0.21.0",
+    "npm:@narumitw/pi-btw",
+    "npm:pi-token-speed"
+  ],
+  "tokenSpeed": {
+    "display": "tps"
+  },
+  "theme": "morandi"
+}
