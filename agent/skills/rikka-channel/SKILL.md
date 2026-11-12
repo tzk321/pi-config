@@ -1,0 +1,83 @@
+---
+name: rikka-channel
+description: 和手机上 RikkaHub 里的 agent（助手 sbtzk / 自称 tzk）通信：先窥视最近会话再投递、读回复、走 /workspace/bridge 交接、调 douyin-agent 的 MCP 工具。当用户说“去 rikka 说一声”“让他去做”“问下手机那边”，或消息需要送到手机侧时使用。
+---
+
+# 与手机侧 RikkaHub agent 通信
+
+手机侧那个 agent 跑在 Android 的 RikkaHub 里，助手 id `0950e2dc`，能通过 `env_exec` 反向 ssh 回这台机器（别名为 `sb` → `sblinux`）。它**看不到本会话**，本机也**不会自动读**它的对话，所以消息必须显式投递。
+
+## 0. 铁律：先窥后发
+
+用户明确要求过（原话见 MEMORY.md「去 RikkaHub 找人之前的固定动作」）：
+
+1. `rikka-peek` —— 最近 10 个会话：标题 / 完整 id / 多久前 / 助手 / 最后一条摘要。
+2. 判断哪个是**当前在聊的**那个再投。会话库有 400 个，别凭记忆或旧 id 猜；拿不准就问用户。
+3. 投完读回执，别只发不读。
+
+## 1. 工具
+
+```bash
+rikka-peek                     # 最近 10 个会话 + 最后一条在聊什么
+rikka-peek -n 15 / -q 隧道      # 改条数 / 按标题过滤
+rikka-peek -c 39478a37         # 只看某个会话（id 前缀即可）
+rikka-say "要说的话"            # 投到默认频道并等对方回完，打印回复
+rikka-say -c <id|前8位> --no-wait "话" # 指定会话（支持唯一前缀）/ 不等回复
+rikka-say -c <id> < /tmp/msg.md       # 长消息一律走文件，别塞进命令行
+```
+
+- 都在 `~/.local/bin/`，Python，走 `RIKKA_API`，默认 `http://127.0.0.1:8081/api`。
+- `rikka-say` 会自己把前缀展开成完整 UUID（`resolve_conv`），HTTP 错误只打印状态码 + 服务端原话，不再甩 traceback；连不上会提示查 `pi-tunnel.service`。
+- `~/rikka-relay.sh` 是等价的极简投递脚本（默认 `RIKKA_CONV=39478a37`），临时换频道：`RIKKA_CONV=<id> ~/rikka-relay.sh "话"`；它**不做前缀展开、也不打印错误体**，所以报错难查，优先用 `rikka-say`。
+- 直接 curl：`GET /api/conversations` 只给 id/title/时间；正文要 `GET /api/conversations/<id>`，结构是 `messages[].messages[].parts[]`（`type=text` / `reasoning` / `tool`），**不是**扁平的。这条 GET **只认完整 UUID**。
+
+## 1.5 手机 USB 控制通道（2026-11-06 核实）
+
+- **Android USB 共享网段随重新共享/重启变化**，本技能上表里的直连 IP 必须现场换：先 `ssh sb 'ip -br addr show'` 或读手机 netinfo，不要背 172.22.48.x / 10.26.37.x / 10.222.244.x 任一快照。
+- sblinux 侧 systemd-networkd 独占 USB DHCP、NetworkManager 只管 wlo1、resolved 管 DNS，所以停 NM 不掉 USB；旧 `usbtether`/`usbnetfix.service` 已停用并 mask，不复活。
+- `ssh sb` 走 `sb-proxy.sh %h %p`：从实时 netinfo 取 RNDIS 同网段邻居 + 主机密钥 + `uname -n` 校验；发现脚本只收端口，不接 `host port`。
+- 细节、实测边界和未完成项见 `~/.pi/agent/memory/wifi-usb-20261106.md`；**同步这些事实要重启抓包/注入，先问 tzk。**
+
+## 2. 频道 / 地址
+
+| 用途 | 地址 |
+|---|---|
+| RikkaHub API（本机，走手机 `pi-tunnel.service` 反隧道） | `http://127.0.0.1:8081/api` |
+| RikkaHub API（容器/手机内网视角） | `http://172.28.0.1:8080/api` |
+| RikkaHub API（USB 网段直连） | `http://<手机当前RNDIS地址>:8080/api`；`172.22.48.185` 只是 2026-11 旧快照 |
+| douyin-agent 面板 | `http://172.22.48.5:8000`（容器里 `127.0.0.1:8000`） |
+| 手机 kali 容器 | `ssh -p 2222 root@127.0.0.1`（免密，`~/.ssh/id_ed25519`） |
+
+- 当前在用频道：`3b1f61de-0143-43ca-be55-cb7b5fb9aa92`「Linux查pi会话」（2026-11-03 起）。
+- `39478a37-1efa-4f3a-8b5b-3853181b83dd`「确认隧道与pi连通」降为备选；`8a9a6754-d01e-43ff-99df-f47a3d19f52e` 已存档，别再投。
+- 会话数会一直涨（400+），**每次都重新 `rikka-peek`**，别信这里的 id。
+- 反隧道由手机容器里的 `pi-tunnel.service` 提供：`-R 127.0.0.1:2222 → 容器22`、`-R 127.0.0.1:8081 → 172.28.0.1:8080`、`-L 127.0.0.1:8000 → 容器8000`。断了查 `systemctl is-active pi-tunnel`。
+
+## 3. bridge 交接
+
+两侧同一个盘：本机进容器后 `/workspace/bridge/`。
+
+- 派活 → `tasks/YYYYMMDD-标题-给pi.md`（或 `-给tzk.md`），写清要什么、验收什么。
+- 回执 → `results/`。
+- 动手前先 `ls -t /workspace/bridge/tasks | head -10`；**2026-10 那批 md 是历史**，别当现况。
+- 同一件事别同时投对话和 bridge。
+
+## 4. douyin-agent 的 MCP
+
+`douyin-agent` 有 `POST /mcp`（streamable_http，手写最小实现），工具：`douyin_conversations` / `douyin_inbox` / `douyin_send` / `douyin_suggest`。已注册进 RikkaHub 设置（`mcp_servers` id `704f4004-a2a1-431a-a6be-2d51e04a5b87`，name=douyin）并挂在助手 sbtzk 上。
+
+- 挂接走官方接口，别手改 DataStore：`POST /api/settings/assistant/mcp {"assistantId":"0950e2dc-…","mcpServerIds":["704f4004-…"]}`。
+- 设置文件是 protobuf `settings.preferences_pb`（`/data/data/me.rerere.rikkahub/files/datastore/`，约 150KB），改前必备份；里面是 `key→bytes`，值是单字段 message，JSON 就在 bytes 里。
+- 闸门默认 0（全关）；`douyin_send` 要求闸门=2，限频 3 秒/条、30 条/小时。
+- `douyin_send` 带 `dry: true` 时只真实填字再清空（不按回车），`/api/outbox` 的 body 加 `"dry": true` 同理，适合自检而不打扰对方。
+- douyin-agent 跑在 systemd 用户单元 `douyin-agent.service`（`Linger=yes` + `Restart=always`，`DA_HEADLESS=1`），开机自起，本机不用手拉；重启后**闸门值仍在**（存在 `data/agent.db`），想关就先 `POST /api/gate -d '{"gate":"1"}'`（该接口不要 token）。
+
+## 5. 坑
+
+- 每条投递都会触发对方 LLM 生成（花它额度），别刷屏；`rikka-say` 已经会等生成结束。
+- **短 id 坑（2026-11-03 修）**：RikkaHub 的 detail API 只认完整 UUID，`GET /api/conversations/3b1f61de` 直接 400，看起来像接口坏了。`rikka-peek`/`rikka-say` 都已自动展开前缀；**自己 curl 时必须给完整 UUID**。
+- **fish 反引号坑**：`rikka-say "… `状态` …"` 会被 fish 当命令替换，消息被吃成碎片还报 400。长消息/含反引号的消息一律先写文件，再 `rikka-say -c <id> < msg.md`。
+- POST 消息返回 `{"status":"accepted","successor":"<id>"}`：`successor` 指向该会话当前的活动分支，不代表换了频道，仍往同一个 id 投。
+- 对方称自己为 **tzk**（手机侧），这台机器是 **sblinux**；`wsl` 那套旧通道已废。
+- 在本机 fish 里通过 ssh 跑含 `for`/引号/`$` 的复合命令容易报错，统一用 `ssh … 'bash -c "…"'` 包一层。
+- 别拿 RikkaHub 的对话当“我能看到”的上下文：要读就显式 `rikka-peek`。
