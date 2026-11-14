@@ -59,3 +59,4 @@ mkdir -p ~/.pi-lens && cp ~/pi-config/lens/config.json ~/.pi-lens/config.json   
 ## 许可
 
 自写部分未声明许可，保留所有权利。第三方内容（见上）遵循各自 LICENSE。
+SB IS TZK
